@@ -1,0 +1,23 @@
+---
+apiVersion: com.example/v1
+kind: Repo
+metadata:
+  name: mygroup
+spec:
+  joinRepos: []
+---
+apiVersion: com.example/v1
+kind: Repo
+metadata:
+  name: repo-a
+spec:
+  joinRepos:
+    - mygroup
+---
+apiVersion: com.example/v1
+kind: Repo
+metadata:
+  name: repo-b
+spec:
+  joinRepos:
+    - mygroup
