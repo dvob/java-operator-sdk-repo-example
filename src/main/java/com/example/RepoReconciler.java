@@ -6,6 +6,7 @@ import io.javaoperatorsdk.operator.api.reconciler.ControllerConfiguration;
 import io.javaoperatorsdk.operator.api.reconciler.EventSourceContext;
 import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
 import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
+import io.javaoperatorsdk.operator.processing.event.Event;
 import io.javaoperatorsdk.operator.processing.event.ResourceID;
 import io.javaoperatorsdk.operator.processing.event.source.EventSource;
 import io.javaoperatorsdk.operator.processing.event.source.informer.InformerEventSource;
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -71,7 +73,23 @@ public class RepoReconciler implements Reconciler<Repo> {
                         })
                         .build();
 
-        var repoEventSource = new InformerEventSource<>(config, context);
+        // Override onUpdate to run the secondaryToPrimaryMapper on BOTH old and new object,
+        // like controller-runtime does (see enqueue_mapped.go). The default only maps the new
+        // object, so removals from joinRepos would not notify the former target.
+        var repoEventSource = new InformerEventSource<>(config, context) {
+            @Override
+            public void onUpdate(Repo oldObject, Repo newObject) {
+                // Propagate for oldObject first so removed refs are notified,
+                // then let super handle newObject (the default behavior).
+                var handler = getEventHandler();
+                if (handler != null) {
+                    for (var id : config.getSecondaryToPrimaryMapper().toPrimaryResourceIDs(oldObject)) {
+                        handler.handleEvent(new Event(id));
+                    }
+                }
+                super.onUpdate(oldObject, newObject);
+            }
+        };
 
         return List.of(repoEventSource);
     }
