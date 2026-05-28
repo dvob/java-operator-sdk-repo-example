@@ -10,7 +10,7 @@ public class Runner {
 
     public static void main(String[] args) {
         Operator operator = new Operator();
-        operator.register(new RepoReconciler());
+        operator.register(new MyThingReconciler());
         operator.start();
         log.info("Operator started.");
     }

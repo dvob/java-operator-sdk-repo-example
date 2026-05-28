@@ -1,23 +1,20 @@
 ---
-apiVersion: com.example/v1
-kind: Repo
+apiVersion: example.com/v1
+kind: MyThing
 metadata:
-  name: mygroup
-spec:
-  joinRepos: []
+  name: my-thing
+spec: {}
 ---
-apiVersion: com.example/v1
-kind: Repo
+apiVersion: example.com/v1
+kind: MyThingConfig
 metadata:
-  name: repo-a
+  name: config-a
 spec:
-  joinRepos:
-    - mygroup
+  myThingRef: my-thing
 ---
-apiVersion: com.example/v1
-kind: Repo
+apiVersion: example.com/v1
+kind: MyThingConfig
 metadata:
-  name: repo-b
+  name: config-b
 spec:
-  joinRepos:
-    - mygroup
+  myThingRef: my-thing
