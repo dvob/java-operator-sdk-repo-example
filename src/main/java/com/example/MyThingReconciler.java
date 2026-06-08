@@ -8,11 +8,13 @@ import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
 import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
 import io.javaoperatorsdk.operator.processing.event.ResourceID;
 import io.javaoperatorsdk.operator.processing.event.source.EventSource;
+import io.javaoperatorsdk.operator.processing.event.source.SecondaryToPrimaryMapper;
 import io.javaoperatorsdk.operator.processing.event.source.informer.InformerEventSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -56,13 +58,25 @@ public class MyThingReconciler implements Reconciler<MyThing> {
                                 .map(ResourceID::fromResource)
                                 .collect(Collectors.toSet())
                 )
-                .withSecondaryToPrimaryMapper(secondary -> {
-                    if (secondary.getSpec().getMyThingRef() == null) {
-                        return Collections.emptySet();
+                .withSecondaryToPrimaryMapper(new SecondaryToPrimaryMapper<MyThingConfig>() {
+                    @Override
+                    public Set<ResourceID> toPrimaryResourceIDs(MyThingConfig resource) {
+                        if (resource.getSpec().getMyThingRef() == null) {
+                            return Collections.emptySet();
+                        }
+                        var target = new ResourceID(resource.getSpec().getMyThingRef(), resource.getMetadata().getNamespace());
+                        log.info("secondaryToPrimary: {} -> {}", resource.getMetadata().getName(), target);
+                        return Set.of(target);
                     }
-                    var target = new ResourceID(secondary.getSpec().getMyThingRef(), secondary.getMetadata().getNamespace());
-                    log.info("secondaryToPrimary: {} -> {}", secondary.getMetadata().getName(), target);
-                    return Set.of(target);
+
+                    @Override
+                    public Set<ResourceID> toPrimaryResourceIDs(MyThingConfig newResource, MyThingConfig oldResource) {
+                        var targets = new HashSet<>(toPrimaryResourceIDs(newResource));
+                        if (oldResource != null && oldResource.getSpec().getMyThingRef() != null) {
+                            targets.add(new ResourceID(oldResource.getSpec().getMyThingRef(), oldResource.getMetadata().getNamespace()));
+                        }
+                        return targets;
+                    }
                 })
                 .build();
 
