@@ -43,24 +43,30 @@ public class MyThingReconciler implements Reconciler<MyThing> {
 
     @Override
     public List<EventSource<?, MyThing>> prepareEventSources(EventSourceContext<MyThing> context) {
-        // Watch MyThingConfig as secondary resources of MyThing.
-        // No withPrimaryToSecondaryMapper needed — JOSDK builds the reverse index
-        // automatically from the secondaryToPrimaryMapper.
-        var configEventSource = new InformerEventSource<>(
-                InformerEventSourceConfiguration
-                        .from(MyThingConfig.class, MyThing.class)
-                        .withName("myThingConfigs")
-                        .withSecondaryToPrimaryMapper(secondary -> {
-                            if (secondary.getSpec().getMyThingRef() == null) {
-                                return Collections.emptySet();
-                            }
-                            var target = new ResourceID(secondary.getSpec().getMyThingRef(), secondary.getMetadata().getNamespace());
-                            log.info("secondaryToPrimary: {} -> {}", secondary.getMetadata().getName(), target);
-                            return Set.of(target);
-                        })
-                        .build(),
-                context);
+        // Declare first so the primaryToSecondaryMapper lambda can reference it
+        final InformerEventSource<MyThingConfig, MyThing>[] holder = new InformerEventSource[1];
 
-        return List.of(configEventSource);
+        var config = InformerEventSourceConfiguration
+                .from(MyThingConfig.class, MyThing.class)
+                .withName("myThingConfigs")
+                .withPrimaryToSecondaryMapper(primary ->
+                        holder[0].list(c ->
+                                        primary.getMetadata().getName().equals(c.getSpec().getMyThingRef())
+                                        && primary.getMetadata().getNamespace().equals(c.getMetadata().getNamespace()))
+                                .map(ResourceID::fromResource)
+                                .collect(Collectors.toSet())
+                )
+                .withSecondaryToPrimaryMapper(secondary -> {
+                    if (secondary.getSpec().getMyThingRef() == null) {
+                        return Collections.emptySet();
+                    }
+                    var target = new ResourceID(secondary.getSpec().getMyThingRef(), secondary.getMetadata().getNamespace());
+                    log.info("secondaryToPrimary: {} -> {}", secondary.getMetadata().getName(), target);
+                    return Set.of(target);
+                })
+                .build();
+
+        holder[0] = new InformerEventSource<>(config, context);
+        return List.of(holder[0]);
     }
 }
